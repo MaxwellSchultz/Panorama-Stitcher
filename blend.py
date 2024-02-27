@@ -26,11 +26,36 @@ def imageBoundingBox(img, M):
          minX: int for the maximum X value of a corner
          minY: int for the maximum Y value of a corner
     """
-    #TODO 8 determine the outputs for this method.
-    raise Exception("TODO 8 in blend.py not implemented")
-    #TODO-BLOCK-END
+
+    H, W = img.shape[:2]
+
+    corners = np.array([[0, 0], [0, H - 1], [W - 1, H - 1], [W - 1, 0]])
+
+    transformed_corners = cv2.perspectiveTransform(np.float32([corners]), M)[0]
+    
+    minX = np.min(transformed_corners[:, 0])
+    minY = np.min(transformed_corners[:, 1])
+    maxX = np.max(transformed_corners[:, 0])
+    maxY = np.max(transformed_corners[:, 1])
+
     return int(minX), int(minY), int(maxX), int(maxY)
 
+def bilinear_interpolation(img, x, y):
+    x_0 = int(x)
+    y_0 = int(y)
+    x_1 = x_0 + 1
+    y_1 = y_0 + 1
+
+    dx = x - x0
+    dy = y - y0
+
+    # Perform bilinear interpolation
+    top_left = img[y_0, x_0] * (1 - dx) * (1 - dy)
+    top_right = img[y_0, x_1] * dx * (1 - dy)
+    bottom_left = img[y_1, x_0] * (1 - dx) * dy
+    bottom_right = img[y_1, x_1] * dx * dy
+
+    return top_left + top_right + bottom_left + bottom_right
 
 def accumulateBlend(img, acc, M, blendWidth):
     """
@@ -47,9 +72,25 @@ def accumulateBlend(img, acc, M, blendWidth):
     # convert input image to floats
     img = img.astype(np.float64) / 255.0
 
-    # BEGIN TODO 10: Fill in this routine
-    raise Exception("TODO 10 in blend.py not implemented")
-    # END TODO
+    H, W, _ = acc.shape
+
+    inverse_M = np.linalg.inv(M)
+    for y in range(H):
+        for x in range(W):
+            input_coords = np.dot(inverse_M, [x, y, 1])
+            input_x, input_y, z = input_coords / input_coords[2]
+
+            if ((input_x < 0) or (input_x >= img.shape[1] - 1) or (input_y < 0) or (input_y >= (img.shape[0] - 1))):
+                continue
+
+            pixel_value = bilinear_interpolation(img, input_x, input_y)
+
+            weight = min(x, blendWidth, W - x) / blendWidth
+
+            acc[y, x, :3] += pixel_value * weight
+            acc[y, x, 3] += weight
+
+    return acc
 
 
 def normalizeBlend(acc):
@@ -60,9 +101,13 @@ def normalizeBlend(acc):
        OUTPUT:
          img: image with r,g,b values of acc normalized
     """
-    # BEGIN TODO 11: fill in this routine
-    raise Exception("TODO 11 in blend.py not implemented")
-    # END TODO
+
+    img = np.copy(acc)
+
+    img[:, :, :3] /= np.maximum(img[:, :, 3:], 1e-8)
+
+    img[:, :, 3] = 1.0
+
     return (img * 255).astype(np.uint8)
 
 
@@ -102,13 +147,15 @@ def getAccSize(ipv):
             channels = c
             width = w
 
-        # BEGIN TODO 9
         # add some code here to update minX, ..., maxY
-        # this can (should) use the code you wrote for TODO 8
-        raise Exception("TODO 9 in blend.py not implemented")
-        #TODO-BLOCK-END
-        # END TODO
-
+        # this can (should) use the code you wrote for 8
+        newMinX, newMinY, newMaxX, newMaxY = imageBoundingBox(img, M)
+        
+        minX = min(minX, newMinX)
+        minY = min(minY,newMinY)
+        maxX = max(maxX, newMaxX)
+        maxY = max(maxY,newMaxY)
+        
     # Create an accumulator image
     accWidth = int(math.ceil(maxX) - math.floor(minX))
     accHeight = int(math.ceil(maxY) - math.floor(minY))
