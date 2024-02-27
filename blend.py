@@ -46,10 +46,9 @@ def bilinear_interpolation(img, x, y):
     x_1 = x_0 + 1
     y_1 = y_0 + 1
 
-    dx = x - x0
-    dy = y - y0
+    dx = x - x_0
+    dy = y - y_0
 
-    # Perform bilinear interpolation
     top_left = img[y_0, x_0] * (1 - dx) * (1 - dy)
     top_right = img[y_0, x_1] * dx * (1 - dy)
     bottom_left = img[y_1, x_0] * (1 - dx) * dy
